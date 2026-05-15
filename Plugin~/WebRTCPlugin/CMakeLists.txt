@@ -211,11 +211,27 @@ elseif(Android)
   target_compile_options(WebRTCLib PUBLIC -fno-lto -fno-rtti -fPIC)
 
   # Linker excludes unused symbols from the shared library when linking the
-  # archive file (libwebrtc.a).
-  file(READ "${CMAKE_SOURCE_DIR}/tools/android/jni_symbols.txt" JNI_SYMBOLS)
-  string(REPLACE "\n" ";" JNI_SYMBOLS ${JNI_SYMBOLS})
-  list(TRANSFORM JNI_SYMBOLS PREPEND "-Wl,--undefined=")
-  target_link_options(WebRTCLib PUBLIC ${JNI_SYMBOLS})
+  # archive file (libwebrtc.a). The jni_symbols.txt list pins ~150 Java_*
+  # native callbacks so libwebrtc's Java layer can find them at runtime.
+  #
+  # [realmview fork] We materialise the list as a SINGLE linker response file
+  # (`@rspfile`) instead of ~150 individual `-Wl,--undefined=Java_*` link
+  # options. The original approach overflowed the Windows 8191-char cmd.exe
+  # command-line limit during ninja link (observed 2026-05-15:
+  # "The command line is too long. ninja: build stopped: subcommand failed.").
+  # Clang's `@file` expands at link time so the symbol list never appears on
+  # the command line itself.
+  file(READ "${CMAKE_SOURCE_DIR}/tools/android/jni_symbols.txt" JNI_SYMBOLS_RAW)
+  string(REPLACE "\n" ";" JNI_SYMBOLS_LIST "${JNI_SYMBOLS_RAW}")
+  set(JNI_LINKER_RSP "${CMAKE_CURRENT_BINARY_DIR}/jni_undefined.rsp")
+  set(JNI_RSP_CONTENT "")
+  foreach(sym IN LISTS JNI_SYMBOLS_LIST)
+    if(NOT "${sym}" STREQUAL "")
+      set(JNI_RSP_CONTENT "${JNI_RSP_CONTENT}-Wl,--undefined=${sym}\n")
+    endif()
+  endforeach()
+  file(WRITE "${JNI_LINKER_RSP}" "${JNI_RSP_CONTENT}")
+  target_link_options(WebRTCLib PUBLIC "@${JNI_LINKER_RSP}")
 
   set(PROJECT_BINARY_DIR "${CMAKE_SOURCE_DIR}/../Runtime/Plugins/Android")
 endif()

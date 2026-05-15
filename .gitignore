@@ -386,6 +386,63 @@ Runtime/Plugins/x86_64/*.lib.meta
 Runtime/Plugins/x86_64/*.ilk.meta
 Runtime/Plugins/x86_64/*.pdb.meta
 
+# ===================================================================
+# realmview fork additions
+# ===================================================================
+#
+# Native plugin build artifacts produced by BuildScripts~/build_plugin_android.{sh,ps1}
+# (and the other build_plugin_*.sh scripts under BuildScripts~/). All paths are
+# anchored to the repo root with a leading slash so we don't accidentally ignore
+# similarly-named files deeper in the tree.
+#
+# webrtc.zip is the prebuilt libwebrtc archive the build scripts download from
+# the official Unity CDN (~7 MB compressed, ~700 MB extracted). It's a build
+# cache and must never be committed -- the URL in the build scripts is the
+# source of truth. Each build script reuses the cached zip if present; first
+# run after `git clean -fdx` downloads it again.
 
+/webrtc.zip
+/webrtc.zip.meta
 
+# build_log.txt is the per-build transcript captured by the PowerShell wrapper
+# (build_plugin_android.ps1) and any other tee'd stdout/stderr from the bash
+# build scripts. Useful for diagnosing build failures but never useful in git
+# history -- the same information is on disk on whichever machine ran the
+# build, and the next build overwrites it anyway.
+/build_log.txt
+/build_log.txt.meta
 
+# OS-level clutter that is not covered by the Visual Studio template above.
+# macOS Finder metadata and Windows folder-thumbnail cache should never be
+# committed regardless of who is contributing to the fork.
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# -------------------------------------------------------------------
+# Unity auto-generated .meta files that upstream does NOT track
+# -------------------------------------------------------------------
+# Upstream tracks the *source* file but not the corresponding `.meta` that
+# Unity creates the first time it scans this package. Until upstream commits
+# those .meta files (which they may never -- these paths are not under
+# Assets/ and don't strictly need them), every fork checkout regenerates
+# them and they show up as untracked.
+#
+# We intentionally do NOT use a blanket `*.meta` rule because Unity-aware
+# package paths (`Editor/`, `Runtime/`, `Tests/`, `Samples~/`,
+# `Documentation~/`) DO require their .meta files to be checked in -- those
+# are how Unity establishes asset GUIDs and import settings. Ignore only
+# the specific paths where we know upstream doesn't track them:
+
+# Root-level config files (legit Unity package files, but upstream skipped
+# the .meta -- probably because they live outside Assets/ in the package).
+/TestRunnerOptions.json.meta
+/xray-exemptions.json.meta
+
+# Tools/ contains the Wrench .NET tooling project. It is NOT a Unity Assets
+# directory -- it's a standalone C# solution that Unity should not be
+# scanning for assets. Ignore every .meta file under it so the local Unity
+# scanner doesn't pollute the working tree.
+/Tools.meta
+/Tools/**/*.meta

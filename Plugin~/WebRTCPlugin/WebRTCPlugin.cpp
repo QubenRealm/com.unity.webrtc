@@ -1278,6 +1278,21 @@ extern "C"
         return error.type();
     }
 
+    // [realmview fork] Intervention A: expose libwebrtc's RtpSenderInterface::GenerateKeyFrame()
+    // so the client can request a fresh IDR without taking the SetParameters(active=false/true)
+    // restart path. On Quest 3 the encoder-restart approach costs ~260 ms of MediaCodec teardown
+    // and rebuild; this entry point is a thin pass-through into libwebrtc which dispatches the
+    // request through the encoder thread (~1 ms, no MediaCodec teardown).
+    //
+    // Empty rids vector means "all encodings" -- correct for our single-encoding sender.
+    // libwebrtc API has been stable since M104. Sender pointer is not retained.
+    UNITY_INTERFACE_EXPORT void SenderGenerateKeyFrame(RtpSenderInterface* sender)
+    {
+        if (sender == nullptr)
+            return;
+        sender->GenerateKeyFrame({});
+    }
+
     UNITY_INTERFACE_EXPORT bool VideoSourceGetSyncApplicationFramerate(UnityVideoTrackSource* source)
     {
         return source->syncApplicationFramerate();

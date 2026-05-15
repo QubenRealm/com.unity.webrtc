@@ -278,6 +278,28 @@ namespace Unity.WebRTC
         }
 
         /// <summary>
+        ///     [realmview fork] Requests the encoder to emit a fresh key frame (IDR) on its next
+        ///     output without restarting the encoder pipeline.
+        /// </summary>
+        /// <remarks>
+        ///     This is an Intervention-A fork addition not present in upstream Unity.WebRTC.
+        ///     It exposes <c>webrtc::RtpSenderInterface::GenerateKeyFrame</c> directly so callers
+        ///     can avoid the SetParameters(active=false/true) encoder-restart trick used by
+        ///     upstream sample code. On Quest 3 the restart trick costs ~260 ms of MediaCodec
+        ///     teardown + reinitialise; this path is ~1 ms (the request is queued on the libwebrtc
+        ///     encoder thread and the IDR is emitted at the next encode tick).
+        ///
+        ///     Throws <see cref="EntryPointNotFoundException"/> if the native plugin
+        ///     (<c>libwebrtc.so</c>) has not been rebuilt with the matching
+        ///     <c>SenderGenerateKeyFrame</c> export; callers may catch and fall back to
+        ///     the SetParameters path.
+        /// </remarks>
+        public void GenerateKeyFrame()
+        {
+            NativeMethods.SenderGenerateKeyFrame(GetSelfOrThrow());
+        }
+
+        /// <summary>
         ///     Replaces the current source track with a new MediaStreamTrack.
         /// </summary>
         /// <remarks>

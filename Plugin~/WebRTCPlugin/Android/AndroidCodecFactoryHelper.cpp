@@ -23,14 +23,11 @@ namespace webrtc
     {
         JNIEnv* env = AttachCurrentThreadIfNeeded();
         RTC_DCHECK(env);
-        // [realmview fork] Was: "org/webrtc/HardwareVideoEncoderFactory" (stock libwebrtc).
-        // Now points at our subclass under Runtime/Plugins/Android/RealmViewVideoEncoderFactory.java
-        // which wraps each encoder so we can inject MediaCodec keys
-        // (KEY_INTRA_REFRESH_PERIOD + KEY_BITRATE_MODE=CBR + KEY_I_FRAME_INTERVAL safety net)
-        // at initEncode() time. Constructor signature stays identical so the libwebrtc-side
-        // JavaToNativeVideoEncoderFactory call works unchanged. See webrtc_fork.md in the
-        // realm_view repo for the full architecture rationale.
-        ScopedJavaLocalRef<jclass> factory_class = GetClass(env, "com/qubenrealm/webrtc/RealmViewVideoEncoderFactory");
+        // [realmview fork] Reverted to stock upstream class after Intervention C was deferred
+        // in favour of Intervention A (RtpSender::GenerateKeyFrame() cheap PLI). The previous
+        // attempt pointed at com/qubenrealm/webrtc/RealmViewVideoEncoderFactory but those
+        // Java wrapper files were removed when we shifted strategy. See webrtc_fork.md.
+        ScopedJavaLocalRef<jclass> factory_class = GetClass(env, "org/webrtc/HardwareVideoEncoderFactory");
         jmethodID factory_constructor =
             env->GetMethodID(factory_class.obj(), "<init>", "(Lorg/webrtc/EglBase$Context;ZZ)V");
         ScopedJavaLocalRef<jobject> factory_object(

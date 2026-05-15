@@ -1607,6 +1607,11 @@ namespace Unity.WebRTC
         public static extern void SenderGetParameters(IntPtr sender, out IntPtr parameters);
         [DllImport(WebRTC.Lib)]
         public static extern RTCErrorType SenderSetParameters(IntPtr sender, IntPtr parameters);
+        // [realmview fork] Intervention A: cheap forced-IDR pass-through into libwebrtc.
+        // Avoids the ~260 ms MediaCodec restart that SetParameters(active=false/true) incurs
+        // on Quest 3. The matching C export lives in WebRTCPlugin.cpp/SenderGenerateKeyFrame.
+        [DllImport(WebRTC.Lib)]
+        public static extern void SenderGenerateKeyFrame(IntPtr sender);
         [DllImport(WebRTC.Lib)]
         [return: MarshalAs(UnmanagedType.U1)]
         public static extern bool SenderReplaceTrack(IntPtr sender, IntPtr track);
