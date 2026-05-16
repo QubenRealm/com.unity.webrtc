@@ -90,4 +90,42 @@ if ($LASTEXITCODE -ne 0) {
     throw "Android plugin build failed with exit code $LASTEXITCODE."
 }
 
+# [realmview fork] PM #9 — Patch the libwebrtc Java bytecode to fix the
+# Quest 3 SIGABRT-on-MediaCodec-reclaim bug.
+#
+# Stock libwebrtc hardcodes keyFrameIntervalSec = 3600 (one hour) in
+# HardwareVideoEncoderFactory.createEncoder(). On Qualcomm c2.qti.avc.encoder
+# this triggers BAD_VALUE during resetCodec() recovery, then a JNI RTC_CHECK
+# abort. See webrtc_changelog.md PM #9 for the full forensic chain.
+#
+# The patch rewrites the single `sipush 3600` instruction in
+# HardwareVideoEncoderFactory.class to `sipush 2` (2-second auto-IDR
+# cadence). Bytecode size is unchanged, no recompilation. Patch is
+# idempotent and aborts loudly if the upstream class no longer matches.
+$aarPath = Join-Path $repoRoot "Runtime/Plugins/Android/libwebrtc.aar"
+$patchScript = Join-Path $scriptRoot "patch_libwebrtc_keyframe_interval.py"
+$patchInterval = 2
+
+if (-not (Test-Path $aarPath)) {
+    throw "Expected libwebrtc.aar at '$aarPath' after bash build but it is missing."
+}
+if (-not (Test-Path $patchScript)) {
+    throw "Java bytecode patch script not found at '$patchScript'."
+}
+
+$pythonCmd = $null
+foreach ($candidate in @("python", "python3", "py")) {
+    $resolved = Get-Command $candidate -ErrorAction SilentlyContinue
+    if ($resolved) { $pythonCmd = $resolved.Source; break }
+}
+if (-not $pythonCmd) {
+    throw "Python 3 not found on PATH. Required to apply the HardwareVideoEncoderFactory bytecode patch."
+}
+
+Write-Host "Patching libwebrtc.aar keyframe interval (sipush 3600 -> sipush $patchInterval)..."
+& $pythonCmd $patchScript $aarPath $patchInterval
+if ($LASTEXITCODE -ne 0) {
+    throw "Java bytecode patch failed with exit code $LASTEXITCODE. AAR may be in an inconsistent state."
+}
+
 Write-Host "Android plugin build completed successfully."

@@ -69,6 +69,52 @@ if [ -z "$ANDROID_NDK_RESOLVED" ]; then
   exit 1
 fi
 
+# [realmview fork] Resolve a cmake executable. Three runtime environments:
+#   - Linux/macOS CI:      cmake is on PATH normally.
+#   - Git Bash on Windows: cmake may or may not be on PATH (depends on whether
+#                          a CMake install is registered system-wide).
+#   - WSL bash on Windows: native ELF cmake is rarely installed; the Unity-
+#                          bundled Windows cmake.exe is available under
+#                          /mnt/c/... but WSL does NOT auto-resolve `cmake`
+#                          to `cmake.exe` (unlike interactive interop), so
+#                          a bare `cmake .` invocation in the script fails.
+#
+# We resolve once into an absolute CMAKE variable and rewrite later invocations
+# below to use "$CMAKE" instead of `cmake`. Falling back silently to the
+# baseline AAR (no libwebrtc.so) is the silent-failure mode that bit us on
+# 2026-05-15 -- symptom on device was `DllNotFoundException: Unable to load
+# DLL 'webrtc'`.
+CMAKE=""
+if command -v cmake >/dev/null 2>&1; then
+  CMAKE="cmake"
+else
+  ANDROID_PLAYER_ROOT="$(dirname "$ANDROID_NDK_RESOLVED")"
+  CMAKE_CANDIDATE=""
+  if [ -d "$ANDROID_PLAYER_ROOT/SDK/cmake" ]; then
+    for cmake_dir in "$ANDROID_PLAYER_ROOT/SDK/cmake"/*/bin; do
+      if [ -x "$cmake_dir/cmake" ]; then
+        CMAKE_CANDIDATE="$cmake_dir/cmake"
+      elif [ -f "$cmake_dir/cmake.exe" ]; then
+        # WSL can execute Windows .exe via interop, but only when invoked
+        # explicitly with the .exe suffix. We rely on that here.
+        CMAKE_CANDIDATE="$cmake_dir/cmake.exe"
+      fi
+    done
+  fi
+  if [ -n "$CMAKE_CANDIDATE" ]; then
+    CMAKE="$CMAKE_CANDIDATE"
+    echo "Auto-detected Unity-bundled cmake: $CMAKE"
+    # Also expose it on PATH so any sub-tool that shells out to bare `cmake`
+    # (e.g. CMake's own Ninja generator regenerating build files) finds it.
+    export PATH="$(dirname "$CMAKE"):$PATH"
+  else
+    echo "ERROR: cmake is not on PATH and Unity-bundled cmake was not found under" >&2
+    echo "       $ANDROID_PLAYER_ROOT/SDK/cmake" >&2
+    echo "       Install cmake or set PATH to include one before running this script." >&2
+    exit 1
+  fi
+fi
+
 # Download LibWebRTC only once; reuse local cache on subsequent runs.
 if [ ! -f "webrtc.zip" ]; then
   echo "Downloading libwebrtc archive..."
@@ -115,7 +161,7 @@ do
   echo "===================================================================="
   echo "[build_plugin_android] Building libwebrtc.so for ABI: $ARCH_ABI"
   echo "===================================================================="
-  cmake . \
+  "$CMAKE" . \
     -B build \
     -D CMAKE_SYSTEM_NAME=Android \
     -D CMAKE_ANDROID_API_MIN=24 \
@@ -125,7 +171,7 @@ do
     -D CMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
     -D CMAKE_ANDROID_STL_TYPE=c++_static
 
-  cmake \
+  "$CMAKE" \
     --build build \
     --target WebRTCPlugin
 
